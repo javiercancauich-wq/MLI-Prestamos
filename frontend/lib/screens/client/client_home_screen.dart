@@ -72,6 +72,172 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
     }
   }
 
+  Future<void> _openPaymentSheet(String method, String methodTitle) async {
+    final loanId = _summary?['loan_id'];
+    if (loanId == null) return;
+
+    final suggested = (_summary?['installment_amount'] ?? '').toString();
+    final amountController = TextEditingController(text: suggested);
+    final notesController = TextEditingController(
+      text: method == 'cash'
+          ? 'Coordinar cobro en efectivo en domicilio'
+          : 'Pago reportado vía $methodTitle',
+    );
+    final formKey = GlobalKey<FormState>();
+    bool saving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Pagar con $methodTitle',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      method == 'cash'
+                          ? 'El Admin registra los abonos en efectivo en tu domicilio.'
+                          : method == 'transfer'
+                              ? 'Realiza tu transferencia y reporta el monto abonado.'
+                              : 'Completa el monto a abonar con tarjeta.',
+                      style: TextStyle(color: Colors.grey[700]),
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: amountController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Monto a pagar (\$)',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (v) {
+                        final n = double.tryParse(v ?? '');
+                        if (n == null || n <= 0) return 'Ingresa un monto válido';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Referencia o nota',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              if (!formKey.currentState!.validate()) return;
+                              setSheetState(() => saving = true);
+                              try {
+                                await _apiService.registerPayment(
+                                  loanId: loanId as int,
+                                  amount: double.parse(amountController.text),
+                                  paymentMethod: method,
+                                  notes: notesController.text,
+                                );
+                                if (!sheetContext.mounted) return;
+                                Navigator.pop(sheetContext);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      '¡Gracias por tu pago! Tu cuenta se ha actualizado.',
+                                    ),
+                                  ),
+                                );
+                                await _loadSummary();
+                              } catch (e) {
+                                setSheetState(() => saving = false);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      e.toString().replaceFirst('Exception: ', ''),
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                      child: Text(saving ? 'Procesando...' : 'Confirmar pago'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    amountController.dispose();
+    notesController.dispose();
+  }
+
+  Widget _buildAlertBanner() {
+    final status = (_summary?['alert_status'] ?? 'al_corriente').toString();
+    final message = (_summary?['alert_message'] ?? '').toString();
+    if (message.isEmpty) return const SizedBox.shrink();
+
+    Color bgColor = Colors.blue.withValues(alpha: 0.1);
+    Color fgColor = Colors.blue[900]!;
+    IconData icon = Icons.event_available;
+
+    if (status == 'en_mora') {
+      bgColor = Colors.red.withValues(alpha: 0.12);
+      fgColor = Colors.red[900]!;
+      icon = Icons.warning_amber_rounded;
+    } else if (status == 'liquidado') {
+      bgColor = Colors.green.withValues(alpha: 0.12);
+      fgColor = Colors.green[900]!;
+      icon = Icons.verified;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: fgColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: fgColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: fgColor, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = _summary?['full_name'] ?? widget.sessionData['name'] ?? 'Cliente';
@@ -124,6 +290,7 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      _buildAlertBanner(),
                       Card(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -160,9 +327,44 @@ class _ClientHomeScreenState extends State<ClientHomeScreen> {
                               Text(
                                 'Cuota: \$${_summary?['installment_amount'] ?? 0} (${_summary?['installments_count'] ?? 0} pagos · ${_formatFrequency(_summary?['frequency']?.toString())})',
                               ),
+                              if (_summary?['next_due_date'] != null)
+                                Text(
+                                  'Próxima fecha acordada: ${_summary?['next_due_date']}',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
                             ],
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Opciones de pago',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                _openPaymentSheet('cash', 'Efectivo en domicilio'),
+                            icon: const Icon(Icons.payments_outlined),
+                            label: const Text('Efectivo'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                _openPaymentSheet('transfer', 'Transferencia'),
+                            icon: const Icon(Icons.account_balance),
+                            label: const Text('Transferencia'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: () =>
+                                _openPaymentSheet('card', 'Tarjeta'),
+                            icon: const Icon(Icons.credit_card),
+                            label: const Text('Tarjeta'),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 18),
                       const Text(

@@ -83,6 +83,10 @@ class ClientLoanSummaryResponse(BaseModel):
     status: LoanStatus
     schedule: list[InstallmentItem]
     payments: list[PaymentHistoryItem]
+    next_due_date: Optional[str] = None
+    overdue_installments: int = 0
+    alert_status: str = "al_corriente"  # "al_corriente", "por_vencer", "en_mora", "liquidado"
+    alert_message: str = ""
 
 
 class LoanListItem(BaseModel):
@@ -101,3 +105,6 @@ class LoanListItem(BaseModel):
     remaining_balance: float
     installment_amount: float
     status: LoanStatus
+
+
+

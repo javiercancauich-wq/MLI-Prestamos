@@ -236,6 +236,36 @@ def get_client_loan_summary(borrower_id: int, db: Session = Depends(get_db)):
         loan.amount, loan.total_to_pay, loan.installments_count, loan.frequency
     )
 
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    remaining_balance = round(max(0.0, loan.total_to_pay - total_paid), 2)
+    schedule = build_schedule(
+        loan.amount, loan.total_to_pay, loan.installments_count, loan.frequency
+    )
+
+    due_items = [item for item in schedule if item.due_date <= today_str]
+    upcoming_items = [item for item in schedule if item.due_date > today_str]
+    next_due_date = upcoming_items[0].due_date if upcoming_items else (schedule[-1].due_date if schedule else None)
+
+    expected_paid_to_date = round(sum(item.amount for item in due_items), 2)
+    overdue_installments = 0
+    if remaining_balance <= 0:
+        alert_status = "liquidado"
+        alert_message = "¡Préstamo liquidado! No tienes saldo pendiente."
+    elif total_paid + 0.01 < expected_paid_to_date:
+        diff = round(expected_paid_to_date - total_paid, 2)
+        overdue_installments = max(1, int(round(diff / max(loan.installment_amount, 0.01))))
+        alert_status = "en_mora"
+        alert_message = (
+            f"Aviso de mora: tienes un atraso acumulado de \${diff} "
+            f"({overdue_installments} cuota(s) vencida(s) a la fecha {today_str})."
+        )
+    elif next_due_date is not None:
+        alert_status = "por_vencer"
+        alert_message = f"Tu próxima fecha de pago acordada es el {next_due_date}."
+    else:
+        alert_status = "al_corriente"
+        alert_message = "Tu cuenta está al corriente."
+
     return ClientLoanSummaryResponse(
         borrower_id=borrower.id,
         full_name=borrower.full_name,
@@ -253,6 +283,11 @@ def get_client_loan_summary(borrower_id: int, db: Session = Depends(get_db)):
         status=loan.status,
         schedule=schedule,
         payments=payments,
+        next_due_date=next_due_date,
+        overdue_installments=overdue_installments,
+        alert_status=alert_status,
+        alert_message=alert_message,
+        
     )
 
 
