@@ -74,4 +74,16 @@ class ApiService {
       throw Exception(data['detail'] ?? 'Credenciales inválidas');
     }
   }
+
+  Future getClientLoanSummary(int borrowerId) async {
+    final uri = Uri.parse('$baseUrl/api/loans/client/$borrowerId');
+    final response = await http.get(uri);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data;
+    } else {
+      throw Exception(data['detail'] ?? 'No se pudo cargar el estado del préstamo');
+    }
+  }
 }

@@ -51,3 +51,36 @@ class PaymentCreateResponse(BaseModel):
     interest_paid: float
     payment_method: PaymentMethod
     notes: Optional[str] = None
+
+
+class PaymentHistoryItem(BaseModel):
+    id: int
+    amount: float
+    principal_paid: float
+    interest_paid: float
+    payment_method: PaymentMethod
+    notes: Optional[str] = None
+    created_at: datetime
+
+    class Config: 
+        from_attributes = True
+
+
+class ClientLoanSummaryResponse(BaseModel):
+    borrower_id: int 
+    full_name: str
+    username: str
+    loan_id: int
+    amount: float
+    interest_rate: float
+    installments_count: int
+    frequency: PaymentFrequency
+    total_interest: float
+    total_to_pay: float
+    total_paid: float
+    remaining_balance: float
+    installment_amount: float
+    status: LoanStatus
+    schedule: list[InstallmentItem]
+    payments: list[PaymentHistoryItem]
+
