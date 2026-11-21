@@ -86,4 +86,43 @@ class ApiService {
       throw Exception(data['detail'] ?? 'No se pudo cargar el estado del préstamo');
     }
   }
+
+  Future<List<dynamic>> getLoans() async {
+    final uri = Uri.parse('$baseUrl/api/loans');
+    final response = await http.get(uri);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body) as List<dynamic>;
+    } else {
+      final data = jsonDecode(response.body);
+      throw Exception(
+        data is Map && data['detail'] != null
+            ? data['detail']
+            : 'No se pudieron cargar los préstamos',
+      );
+    }
+  }
+
+  Future registerPayment({
+    required int loanId,
+    required double amount,
+    required String paymentMethod, // 'cash', 'card', 'transfer'
+    String notes = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/loans/$loanId/payments');
+    final request = http.MultipartRequest('POST', uri)
+      ..fields['amount'] = amount.toString()
+      ..fields['payment_method'] = paymentMethod
+      ..fields['notes'] = notes.trim();
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data;
+    } else {
+      throw Exception(data['detail'] ?? 'No se pudo registrar el pago');
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../login_screen.dart';
 import 'new_loan_intake_screen.dart';
+import './loans_payments_screen.dart';
 
 class AdminHomeScreen extends StatelessWidget {
   final Map<String, dynamic> sessionData;
@@ -69,7 +70,26 @@ class AdminHomeScreen extends StatelessWidget {
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
+            
+
+            
           ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const LoansPaymentsScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.list_alt),
+            label: const Text('Ver Préstamos y Abonos en Efectivo'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+          
         ],
       ),
     );

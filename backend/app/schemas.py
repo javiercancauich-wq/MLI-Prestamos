@@ -84,3 +84,20 @@ class ClientLoanSummaryResponse(BaseModel):
     schedule: list[InstallmentItem]
     payments: list[PaymentHistoryItem]
 
+
+class LoanListItem(BaseModel):
+    loan_id: int
+    borrower_id: int
+    full_name: str
+    phone: str
+    address: str
+    username: str
+    amount: float
+    interest_rate: float
+    installments_count: int
+    frequency: PaymentFrequency
+    total_to_pay: float
+    total_paid: float
+    remaining_balance: float
+    installment_amount: float
+    status: LoanStatus

@@ -20,6 +20,7 @@ from app.schemas import (
     PaymentCreateResponse,
     ClientLoanSummaryResponse,
     PaymentHistoryItem,
+    LoanListItem,
 )
 
 router = APIRouter(prefix="/api/loans", tags=["Admin & Client Loans"])
@@ -253,3 +254,39 @@ def get_client_loan_summary(borrower_id: int, db: Session = Depends(get_db)):
         schedule=schedule,
         payments=payments,
     )
+
+
+@router.get("", response_model=list[LoanListItem])
+def list_loans(db: Session = Depends(get_db)):
+    loans = db.query(Loan).order_by(Loan.id.desc()).all()
+    result: list[LoanListItem] = []
+
+    for loan in loans:
+        borrower = loan.borrower
+        if not borrower:
+            continue
+        payments = db.query(Payment).filter(Payment.loan_id == loan.id).all()
+        total_paid = round(sum(p.amount for p in payments), 2)
+        remaining_balance = round(max(0.0, loan.total_to_pay - total_paid), 2)
+
+        result.append(
+            LoanListItem(
+                loan_id=loan.id,
+                borrower_id=borrower.id,
+                full_name=borrower.full_name,
+                phone=borrower.phone,
+                address=borrower.address,
+                username=borrower.username,
+                amount=loan.amount,
+                interest_rate=loan.interest_rate,
+                installments_count=loan.installments_count,
+                frequency=loan.frequency,
+                total_to_pay=loan.total_to_pay,
+                total_paid=total_paid,
+                remaining_balance=remaining_balance,
+                installment_amount=loan.installment_amount,
+                status=loan.status,
+            )
+        )
+
+    return result
